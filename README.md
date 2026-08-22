@@ -26,7 +26,7 @@
 C++版本：C++20  
 raylib版本：5.5  
 raylib-cpp版本：5.5.1  
-MinGW版本：15.1
+MinGW版本：15.1  
 OpenGL版本：3.3  
 库需求：UCRT  
 字体：霞鹜文楷
