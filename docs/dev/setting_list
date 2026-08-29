@@ -1,8 +1,0 @@
-res_x
-res_y
-event_table_num 选择的表格
-draw_table_row_num 绘制表格列的数量
-dont_say_students_too_much 不再提醒学生数量太多了
-
-choice_student
-choice_column 注：INT_MAX为特殊值，指全部
