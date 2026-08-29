@@ -1,0 +1,14 @@
+res_x
+res_y
+event_table_num 选择的表格
+draw_table_row_num 绘制表格列的数量
+dont_say_students_too_much 不再提醒学生数量太多了
+
+choice_student 选择的学生，同时用于student_information（字符串）和edit_one_student_event_table（索引）
+set_student_name 设置名称的学生编号，INT_MAX指新建，-1指无
+dont_treat_newline_as_ok 不将换行符视为确认，>0 代表true
+dont_say_rename_will_change_data 不再提示“学生信息”一栏的重名命会同时修改数据，创建代表“是”
+dont_say_change_cell_binding_will_not_change_data 不再提示“组信息”一栏的修改不会同时修改数据，创建代表“是”
+
+choice_group
+choice_column 注：INT_MAX为特殊值，指全部
