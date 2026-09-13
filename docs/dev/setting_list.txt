@@ -1,5 +1,9 @@
 res_x
 res_y
+fps 帧率
+background_color 背景颜色(RRGGBBAA)
+auto_open_osk 自动打开屏幕键盘，>0 代表true
+
 event_table_num 选择的表格
 draw_table_row_num 绘制表格列的数量
 dont_say_students_too_much 不再提醒学生数量太多了
@@ -12,3 +16,5 @@ dont_say_change_cell_binding_will_not_change_data 不再提示“组信息”一
 
 choice_group
 choice_column 注：INT_MAX为特殊值，指全部
+
+dont_enable_taskbar_auto_hide_when_maximize 不要在最大化时隐藏任务栏，>0 代表true

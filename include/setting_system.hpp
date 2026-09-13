@@ -25,6 +25,7 @@ namespace SettingSystem
         int GetSettingIndex(std::string name);
         std::string GetSetting(std::string name);
         int GetSettingI(std::string name);
+        unsigned int GetSettingUI(std::string name);
         float GetSettingF(std::string name);
         SettingLocation GetSettingSL(std::string name);
         int MatchSettingContent(std::string name, std::vector<std::string> contents); // 将传入数组的值与设置项对比
@@ -34,6 +35,7 @@ namespace SettingSystem
 
         void AddSetting(std::string name, std::string content, SettingLocation sl);
         void AddSetting(std::string name, int content, SettingLocation sl);
+        void AddSetting(std::string name, unsigned int content, SettingLocation sl);
         void AddSetting(std::string name, float content, SettingLocation sl);
         void AddSettingFromFile(std::string path);
     };

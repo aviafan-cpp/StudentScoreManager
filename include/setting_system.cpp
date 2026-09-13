@@ -2,6 +2,8 @@
 #include <string>
 #include <cmath>
 #include <fstream>
+#include <climits>
+#include <exception>
 
 namespace SettingSystem
 {
@@ -39,6 +41,14 @@ namespace SettingSystem
     {
         if(!IsSettingExist(name)) return -1;
         return std::stoi(settings[GetSettingIndex(name)].setting_content);
+    }
+
+    unsigned int Settings::GetSettingUI(std::string name)
+    {
+        if(!IsSettingExist(name)) return UINT_MAX;
+        auto temp = std::stoul(settings[GetSettingIndex(name)].setting_content);
+        if(temp > UINT_MAX) std::out_of_range("Settings::GetSettingUI");
+        return static_cast<unsigned int>(temp);
     }
 
     float Settings::GetSettingF(std::string name)
@@ -114,6 +124,19 @@ namespace SettingSystem
     }
 
     void Settings::AddSetting(std::string name, int content, SettingLocation sl)
+    {
+        Setting new_setting = {name, std::to_string(content), sl};
+        if(IsSettingExist(name))
+        {
+            settings[GetSettingIndex(name)] = new_setting;
+        }
+        else
+        {
+            settings.push_back(new_setting);
+        }
+    }
+
+    void Settings::AddSetting(std::string name, unsigned int content, SettingLocation sl)
     {
         Setting new_setting = {name, std::to_string(content), sl};
         if(IsSettingExist(name))

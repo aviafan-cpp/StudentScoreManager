@@ -29,17 +29,27 @@ const unsigned int DESIGN_X = 1920;
 const unsigned int DESIGN_Y = 1080;
 const unsigned int DESIGN_MIN_X = 1920;
 const unsigned int DESIGN_MIN_Y = 1080;
-unsigned int fps = 30;
 
-const std::string version = "1.2.0";
+const unsigned int MIN_FPS = 30;
+const unsigned int MAX_FPS = 240;
+const unsigned int DEFAULT_FPS = 60;
+unsigned int fps = DEFAULT_FPS;
 
+const std::string version = "1.3.0";
+
+const raylib::Color LIGHT_GRAY(235, 235, 235, 255);
+const raylib::Color LIGHT_GREEN(230, 245, 230, 255);
+const raylib::Color SOFT_BEIGE(245, 240, 225, 255);
 const std::array<raylib::Color, 6> colors {BLUE, SKYBLUE, PURPLE, ORANGE, RED, GREEN};
 const std::array<std::string, 8> subjects {"语文", "数学", "英语", "科学", "道法", "地理", "历史", "副课"};
+#if defined(_WIN32)
+    const std::string osk_name = "osk.exe";
+#endif
 
 std::string current_dir, data_dir;
 ssdata::sclass g_sclass;
 SettingSystem::Settings settings;
-enum pages {choose_res, about, class_information, group_information, student_information, choose_event_table, edit_event_table, edit_one_student_event_table, score_overview};
+enum pages {choose_res, change_settings, about, class_information, group_information, student_information, choose_event_table, edit_event_table, edit_one_student_event_table, score_overview};
 pages g_pages;
 raylib::Font font;
 bool draw_sidebar;
@@ -48,19 +58,25 @@ int show_choose_list(coord_calc_vec2& menu, float start_y, float spacing, size_t
 raylib::Color get_color(int num);
 raylib::Color get_color(size_t num);
 std::string format_time_chinese(const std::chrono::system_clock::time_point& tp);
+unsigned int color_to_uint(Color color);
+Color uint_to_color(unsigned int num);
 
 int main(int argc, char *argv[])
 {
     raylib::Window window(DESIGN_MIN_X, DESIGN_MIN_Y, "学生分数管理器");
-    window.SetTargetFPS(fps);
-    
     current_dir = GetApplicationDirectory();
     data_dir = current_dir + "Data/0/";
-    std::filesystem::create_directories(current_dir + "Data/0/");
+    std::filesystem::create_directories(data_dir);
     g_sclass.load_dir(data_dir);
     settings.AddSettingFromFile(current_dir + "Data/Settings");
     roe::coord::coord_calc_vec2 g_menu(DESIGN_X, DESIGN_Y);
     font = roe::font_ex::load_font_chinese(current_dir + "Font/LXGWWenKai-Regular.ttf", 80, true, false, false, true);
+
+    if(!sys_api::ensure_single_instance("Global\\aviafan_cpp.StudentScoreManager"))
+    {
+        bool result = sys_api::message_box("学生分数管理器", "你已打开一个此程序，多开应用可能导致数据竞争、丢失，是否退出？", sys_api::warning, sys_api::yes_no);
+        if(result) return 0;
+    }
 
     if(settings.IsSettingExist("res_x") && settings.IsSettingExist("res_y"))
     {
@@ -68,23 +84,84 @@ int main(int argc, char *argv[])
         g_pages = choose_event_table;
         draw_sidebar = true;
     }
+
+    if(settings.IsSettingExist("fps"))
+    {
+        if(settings.GetSettingI("fps") < MIN_FPS)
+        {
+            bool result = sys_api::message_box(
+                "学生分数管理器",
+                "您设置的" + std::to_string(settings.GetSettingI("fps")) + "帧太小了，可能导致软件过度卡顿，是否恢复为默认的" + std::to_string(DEFAULT_FPS) + "帧？",
+                sys_api::warning,
+                sys_api::yes_no
+            );
+            if(result) settings.AddSetting("fps", DEFAULT_FPS, sets::Local);
+        }
+        if(settings.GetSettingI("fps") > MAX_FPS)
+        {
+            bool result = sys_api::message_box(
+                "学生分数管理器",
+                "您设置的" + std::to_string(settings.GetSettingI("fps")) + "帧太大了，可能导致系统过度卡顿，是否恢复为默认的" + std::to_string(DEFAULT_FPS) + "帧？",
+                sys_api::warning,
+                sys_api::yes_no
+            );
+            if(result) settings.AddSetting("fps", DEFAULT_FPS, sets::Local);
+        }
+        fps = settings.GetSettingI("fps");
+    }
+    else
+        settings.AddSetting("fps", DEFAULT_FPS, sets::Local);
+    SetTargetFPS(fps);
     
-    sys_api::enable_taskbar_auto_hide();
-    std::atexit(sys_api::disable_taskbar_auto_hide);
+    if(sys_api::is_taskbar_auto_hide_enabled())
+    {
+        atexit(sys_api::enable_taskbar_auto_hide);
+        settings.AddSetting("dont_enable_taskbar_auto_hide_when_maximize", 1, sets::Temp);
+    }
+    else atexit(sys_api::disable_taskbar_auto_hide);
 
     while (!window.ShouldClose()) {
         g_menu.x.runtime = GetScreenWidth();
         g_menu.y.runtime = GetScreenHeight();
 
         window.BeginDrawing();
-            window.ClearBackground(RAYWHITE);
+            if(settings.IsSettingExist("background_color"))
+            {
+                window.ClearBackground(uint_to_color(settings.GetSettingUI("background_color")));
+            }
+            else
+            {
+                window.ClearBackground(RAYWHITE);
+            }
             
+            if(settings.GetSettingI("dont_enable_taskbar_auto_hide_when_maximize") <= 0)
+            {
+                if(
+                    GetScreenHeight() == GetMonitorHeight(GetCurrentMonitor()) &&
+                    GetScreenWidth() == GetMonitorWidth(GetCurrentMonitor()) &&
+                    !IsWindowMinimized() &&
+                    !sys_api::is_taskbar_auto_hide_enabled()
+                ){
+                    sys_api::enable_taskbar_auto_hide();
+                    SetWindowPosition(0, 0);
+                }
+                else
+                {
+                    if(sys_api::is_taskbar_auto_hide_enabled()) sys_api::disable_taskbar_auto_hide();
+                }
+            }
+
             text text_template;
             text_template.font(font).horizontal_func(roe::Center).tint(BLUE).font_size(g_menu.calc_min(20));
             button button_template;
             button_template.font(font).horizontal_func(roe::Center).tint(RAYWHITE).text_tint(BLUE).show_border(false).text_size(g_menu.calc_min(20));
             button button_null;
             button_null.size({0, 0}).text_size(0);
+            if(settings.IsSettingExist("background_color"))
+            {
+                button_template.tint(uint_to_color(settings.GetSettingUI("background_color")));
+                button_null.tint(uint_to_color(settings.GetSettingUI("background_color")));
+            }
 
             // 侧边栏
             if(draw_sidebar)
@@ -102,11 +179,10 @@ int main(int argc, char *argv[])
                     .text_size(g_menu.calc_min(40))
                     .size_height_than_text(g_menu.y.calc(10))
                     .size_width_than_text(g_menu.x.calc(10))
-                    .tint(RAYWHITE)
                     .show_border(false)
                     .text_tint(BLUE);
                 int result = show_choose_list(g_menu, g_menu.y.calc_pct(0), g_menu.y.calc(45), content.size(), button_sidebar, content);
-                if(result >= 0 || result < content.size())
+                if(result >= 0 && result < content.size())
                 {
                     if(result == 0) g_pages = class_information;
                     if(result == 1) g_pages = choose_event_table;
@@ -116,7 +192,7 @@ int main(int argc, char *argv[])
 
                 std::vector<std::string> under_content = {
                     "屏幕键盘",
-                    "选择分辨率",
+                    "设置",
                     "关于",
                     "撤回至上一次保存",
                     "保存",
@@ -130,17 +206,12 @@ int main(int argc, char *argv[])
                     under_content.size(),
                     button_sidebar, under_content
                 );
-                if(under_result >= 0 || under_result < under_content.size())
+                if(under_result >= 0 && under_result < under_content.size())
                 {
                     if(under_result == 0){
-                        #if defined(_WIN32)
-                            sys_api::open_program("osk.exe");
-                        #endif
+                        sys_api::open_program(osk_name);
                     }
-                    if(under_result == 1){
-                        g_pages = choose_res;
-                        draw_sidebar = false;
-                    }
+                    if(under_result == 1) g_pages = change_settings;
                     if(under_result == 2) g_pages = about;
                     if(under_result == 3) g_sclass.load_dir(data_dir);
                     if(under_result == 4){
@@ -148,10 +219,13 @@ int main(int argc, char *argv[])
                         settings.SaveSettingToFile(current_dir + "Data/Settings");
                     }
                     if(under_result == 5) return 0;
-                    if(under_result == 6) break;
+                    if(under_result == 6){
+                        g_sclass.save_dir(data_dir);
+                        settings.SaveSettingToFile(current_dir + "Data/Settings");
+                        return 0;
+                    }
                 }
             }
-
 
             switch (g_pages)
             {
@@ -159,11 +233,8 @@ int main(int argc, char *argv[])
                 text_template.position({g_menu.x.runtime / 2, g_menu.y.calc_pct(25)}).font(font).tint(BLUE).st("请设置窗口大小").horizontal_func(roe::Center).font_size(g_menu.calc_min(30)).draw();
                 text_template.position_y(g_menu.y.runtime - 20).st("Copyright (c) 2026 aviafan-cpp https://github.com/aviafan-cpp").draw();
                 
-                button_template.font(font).position_x(g_menu.x.runtime / 2).tint(RAYWHITE).show_border(false).horizontal_func(roe::Center).text_tint(BLUE).text_size(g_menu.calc_min(30));
+                button_template.font(font).position_x(g_menu.x.runtime / 2).show_border(false).horizontal_func(roe::Center).text_tint(BLUE).text_size(g_menu.calc_min(30));
                 std::vector<raylib::Vector2> reses = {
-                    //{1280, 720},
-                    //{1366, 768},
-                    //{1600, 900},
                     {1920, 1080},
                     {2560, 1440},
                     {3840, 2160}
@@ -173,6 +244,12 @@ int main(int argc, char *argv[])
                 int result = show_choose_list(g_menu, g_menu.y.calc_pct(27.5), g_menu.calc_min(45), reses_string.size(), button_template, reses_string);
                 if(result >= 0 && result < reses_string.size())
                 {
+                    if(reses[result].x > GetMonitorWidth(GetCurrentMonitor()))
+                    {
+                        bool result = sys_api::message_box("学生分数管理器", "软件设置的窗口大小太大，会导致内容超出屏幕，是否取消？", sys_api::warning, sys_api::yes_no);
+                        if(result) break;
+                    }
+
                     settings.AddSetting("res_x", reses[result].x, sets::Local);
                     settings.AddSetting("res_y", reses[result].y, sets::Local);
                     window.SetSize(reses[result]);
@@ -180,6 +257,51 @@ int main(int argc, char *argv[])
                     g_pages = choose_event_table;
                     draw_sidebar = true;
                 }
+                break;
+            }
+
+            case change_settings:{
+                button button_a = button(button_template).position_y(g_menu.y.calc(80)).text_size(g_menu.calc_min(30)).horizontal_func(roe::Left);
+                const float POSITION_Y_ADD = 40;
+
+                // 设置窗口大小
+                button(button_a).position_x(g_menu.x.calc_pct(30)).text("窗口大小：" + std::to_string(settings.GetSettingI("res_x")) + " " + std::to_string(settings.GetSettingI("res_y"))).size_height_than_text(0).draw();
+                if(button(button_a).position_x(g_menu.x.calc_pct(90)).text("点击设置").size_height_than_text(0).draw().is_clicked())
+                {
+                    g_pages = choose_res;
+                    draw_sidebar = false;
+                }
+
+                // 设置帧率
+                button_a.position_y(button_a.position_d.y + g_menu.y.calc(POSITION_Y_ADD));
+                button(button_a).position_x(g_menu.x.calc_pct(30)).text("帧率：" + std::to_string(settings.GetSettingI("fps"))).size_height_than_text(0).draw();
+                if(button(button_a).position_x(g_menu.x.calc_pct(60)).text("30").size_height_than_text(0).draw().is_clicked()) settings.AddSetting("fps", 30, sets::Local);
+                if(button(button_a).position_x(g_menu.x.calc_pct(70)).text("60").size_height_than_text(0).draw().is_clicked()) settings.AddSetting("fps", 60, sets::Local);
+                if(button(button_a).position_x(g_menu.x.calc_pct(80)).text("90").size_height_than_text(0).draw().is_clicked()) settings.AddSetting("fps", 90, sets::Local);
+                if(button(button_a).position_x(g_menu.x.calc_pct(90)).text("120").size_height_than_text(0).draw().is_clicked()) settings.AddSetting("fps", 120, sets::Local);
+                fps = settings.GetSettingI("fps");
+                SetTargetFPS(fps);
+
+                // 不要在最大化时隐藏任务栏
+                button_a.position_y(button_a.position_d.y + g_menu.y.calc(POSITION_Y_ADD));
+                button(button_a).position_x(g_menu.x.calc_pct(30)).text("在最大化时隐藏任务栏：" + std::string(settings.GetSettingI("dont_enable_taskbar_auto_hide_when_maximize") > 0 ? "关" : "开")).size_height_than_text(0).draw();
+                if(button(button_a).position_x(g_menu.x.calc_pct(80)).text("开").size_height_than_text(0).draw().is_clicked()) settings.AddSetting("dont_enable_taskbar_auto_hide_when_maximize", 0, sets::Local);
+                if(button(button_a).position_x(g_menu.x.calc_pct(90)).text("关").size_height_than_text(0).draw().is_clicked()) settings.AddSetting("dont_enable_taskbar_auto_hide_when_maximize", 1, sets::Local);
+
+                // 背景颜色
+                button_a.position_y(button_a.position_d.y + g_menu.y.calc(POSITION_Y_ADD));
+                button(button_a).position_x(g_menu.x.calc_pct(30)).text("背景颜色").size_height_than_text(0).draw();
+                if(button(button_a).position_x(g_menu.x.calc_pct(60)).text("浅灰色").size_height_than_text(0).draw().is_clicked()) settings.AddSetting("background_color", color_to_uint(LIGHT_GRAY), sets::Local);
+                if(button(button_a).position_x(g_menu.x.calc_pct(70)).text("浅绿色").size_height_than_text(0).draw().is_clicked()) settings.AddSetting("background_color", color_to_uint(LIGHT_GREEN), sets::Local);
+                if(button(button_a).position_x(g_menu.x.calc_pct(80)).text("米黄色").size_height_than_text(0).draw().is_clicked()) settings.AddSetting("background_color", color_to_uint(SOFT_BEIGE), sets::Local);
+                if(button(button_a).position_x(g_menu.x.calc_pct(90)).text("白色").size_height_than_text(0).draw().is_clicked()) settings.AddSetting("background_color", color_to_uint(RAYWHITE), sets::Local);
+
+                // 自动打开屏幕键盘
+                button_a.position_y(button_a.position_d.y + g_menu.y.calc(POSITION_Y_ADD));
+                button(button_a).position_x(g_menu.x.calc_pct(30)).text("自动打开屏幕键盘：" + std::string(settings.GetSettingI("auto_open_osk") > 0 ? "开" : "关")).size_height_than_text(0).draw();
+                if(button(button_a).position_x(g_menu.x.calc_pct(80)).text("开").size_height_than_text(0).draw().is_clicked()) settings.AddSetting("auto_open_osk", 1, sets::Local);
+                if(button(button_a).position_x(g_menu.x.calc_pct(90)).text("关").size_height_than_text(0).draw().is_clicked()) settings.AddSetting("auto_open_osk", 0, sets::Local);
+
                 break;
             }
 
@@ -312,8 +434,11 @@ int main(int argc, char *argv[])
 
                 // 新建按钮
                 if(button(button_gi).position_y(g_menu.y.calc_pct(5)).text("新建").draw().is_clicked())
+                {
                     settings.AddSetting("set_student_name", INT_MAX, sets::Temp);
-
+                    if(settings.GetSettingI("auto_open_osk") > 0) sys_api::open_program(osk_name);
+                }
+                
                 // 修改单元格绑定
                 std::vector<std::string> names;
                 for(const auto& s : g_sclass.groups[settings.GetSettingI("choice_group")].student_names)
@@ -326,6 +451,7 @@ int main(int argc, char *argv[])
                         if(mb_result) settings.AddSetting("dont_say_change_cell_binding_will_not_change_data", 1, sets::Local);
                     }
                     settings.AddSetting("set_student_name", result, sets::Temp);
+                    if(settings.GetSettingI("auto_open_osk") > 0) sys_api::open_program("osk.exe");
                 }
 
                 std::vector<std::string> string_information, string_del, string_swap = {""};
@@ -491,6 +617,7 @@ int main(int argc, char *argv[])
                         if(mb_result) settings.AddSetting("dont_say_rename_will_change_data", 1, sets::Local);
                     }
                     change_name = true;
+                    if(settings.GetSettingI("auto_open_osk") > 0) sys_api::open_program(osk_name);
                 }
 
                 // 中间内容
@@ -636,7 +763,7 @@ int main(int argc, char *argv[])
                     else
                         names.back() = std::to_string(names.size()) + "表";
                 }
-                show_choose_list(g_menu, g_menu.y.calc_pct(10), g_menu.y.calc(45), names.size(), button_ci, names);
+                int result = show_choose_list(g_menu, g_menu.y.calc_pct(10), g_menu.y.calc(45), names.size(), button_ci, names);
 
                 if(!settings.IsSettingExist("event_table_num")) settings.AddSetting("event_table_num", 0, sets::Temp); // 如果没有选择的表格，就设置为0
 
@@ -653,7 +780,13 @@ int main(int argc, char *argv[])
                 // 选择按钮
                 button_ci.position_x(g_menu.x.calc_pct(70));
                 int sc_result = show_choose_list(g_menu, g_menu.y.calc_pct(10), g_menu.y.calc(45), names.size(), button_ci, string_choice);
-                if(sc_result >= 0 && sc_result < names.size()) settings.AddSetting("event_table_num", sc_result, sets::Temp);
+                if(result >= 0 && result < names.size()) sc_result = result; // 把对于表格名称的点击同步过来
+                if(sc_result >= 0 && sc_result < names.size())
+                {
+                    settings.AddSetting("event_table_num", sc_result, sets::Temp);
+                    g_pages = edit_event_table;
+                    break;
+                }
                 // 删除按钮
                 button_ci.position_x(g_menu.x.calc_pct(80));
                 int sd_result = show_choose_list(g_menu, g_menu.y.calc_pct(10), g_menu.y.calc(45), names.size(), button_ci, string_del);
@@ -1032,6 +1165,12 @@ int main(int argc, char *argv[])
 
             case score_overview:
             {
+                if(g_sclass.event_tables.size() == 0)
+                {
+                    sys_api::message_box("学生分数管理器", "请创建表格！", sys_api::warning, sys_api::ok);
+                    g_pages = choose_event_table;
+                    break;
+                }
                 if(!settings.IsSettingExist("event_table_num"))
                 {
                     sys_api::message_box("学生分数管理器", "请选择表格", sys_api::warning, sys_api::ok);
@@ -1116,8 +1255,11 @@ int main(int argc, char *argv[])
         window.EndDrawing();
     }
 
-    g_sclass.save_dir(data_dir);
-    settings.SaveSettingToFile(current_dir + "Data/Settings");
+    if(sys_api::message_box("学生分数管理器", "是否保存？", sys_api::question, sys_api::yes_no))
+    {
+        g_sclass.save_dir(data_dir);
+        settings.SaveSettingToFile(current_dir + "Data/Settings");
+    }
 
     return 0;
 }
@@ -1221,4 +1363,23 @@ std::string format_time_chinese(const std::chrono::system_clock::time_point& tp)
     std::ostringstream oss;
     oss << std::put_time(&local_tm, "%Y年%m月%d日 %H:%M:%S");
     return oss.str();
+}
+
+unsigned int color_to_uint(Color color)
+{
+    return 
+        (static_cast<unsigned int>(color.r) << 24) |
+        (static_cast<unsigned int>(color.g) << 16) |
+        (static_cast<unsigned int>(color.b) << 8) |
+        static_cast<unsigned int>(color.a);
+}
+
+Color uint_to_color(unsigned int num)
+{
+    Color color;
+    color.r = static_cast<unsigned char>((num >> 24) & 0xFF);
+    color.g = static_cast<unsigned char>((num >> 16) & 0xFF);
+    color.b = static_cast<unsigned char>((num >> 8) & 0xFF);
+    color.a = static_cast<unsigned char>(num & 0xFF);
+    return color;
 }

@@ -36,6 +36,14 @@ namespace sys_api
             return wstr;
         }
 
+        bool ensure_single_instance(std::string program_name)
+        {
+            std::wstring wprogram_name = stow(program_name);
+            static HANDLE hMutex = CreateMutexW(NULL, TRUE, wprogram_name.c_str());
+            if(GetLastError() == ERROR_ALREADY_EXISTS) return false;
+            return true;
+        }
+
         void open_url(std::string url)
         {
             std::wstring wurl = stow(url);

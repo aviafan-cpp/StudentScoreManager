@@ -5,6 +5,8 @@
 
 namespace sys_api
 {
+    bool ensure_single_instance(std::string program_name); // 判断是否没有此程序在运行
+
     void open_url(std::string url);
     void open_file(std::string path);
     void open_file(std::string program_path, std::string path);
